@@ -1,6 +1,7 @@
 import pickle
 import cv2
 import os
+import winsound
 import face_recognition
 from flask import Flask,request,render_template,redirect,session,url_for
 from datetime import date
@@ -116,7 +117,19 @@ def add_attendance(name):
     # Save the updated attendance data
     df.to_csv(f'Attendance/Attendance-{datetoday}.csv', index=False)
     print(f"{username} ({userid}) marked attendance at {current_time}.")
+    try:
+        sound_file='static/success.wav'
+        winsound.PlaySound(sound_file, winsound.SND_FILENAME)
+    except Exception as e:
+        print(f"Error playing sound: {e}")
+        # Consider alternative sound playback methods if needed
   else:
+    try:
+        sound_file='static/failure.wav'
+        winsound.PlaySound(sound_file, winsound.SND_FILENAME)
+    except Exception as e:
+        print(f"Error playing sound: {e}")
+        # Consider alternative sound playback methods if needed
     print(f"{username} ({userid}) has already marked attendance today.")
 ################## ROUTING FUNCTIONS ##############################
 
@@ -159,10 +172,15 @@ def start():
 
                 # Mark attendance for the recognized person
                 add_attendance(name)
+                # Play sound notification on detection (Windows)
+            
 
             # Draw rectangle around the face and display name
             top, right, bottom, left = face_location
-            cv2.rectangle(frame, (left, top), (right, bottom), (0, 0, 255), 2)
+            if name=="Unknown":
+                cv2.rectangle(frame, (left, top), (right, bottom), (0, 0, 255), 2)
+            else:
+                cv2.rectangle(frame, (left, top), (right, bottom), (0, 255, 0), 2)
 
             # Display name below the face rectangle
             font_scale = 1.0
