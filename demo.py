@@ -20,7 +20,7 @@ def load_images_from_folder(folder_path):
 
     return images, encodings, names
 
-# Function to mark attendance with timestamp
+# Function to mark attendance with     timestamp
 def mark_attendance(name):
     with open('attendance.csv', 'a') as file:
         now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
