@@ -71,25 +71,33 @@ def load_images_from_directory(folder_path):
     images = []
     encodings = []
     names = []
-
+    try:
+        with open('encodings.pkl', 'rb') as f:
+            known_encodings, known_names = pickle.load(f)
+    except:
+        known_names=[]
+        known_encodings=[]
     for root, _, files in os.walk(folder_path):
         # Process images from this subfolder
         for filename in files:
             if filename.lower().endswith(('.jpg', '.jpeg', '.png')):  # Case-insensitive image extensions
                 image_path = os.path.join(root, filename)
-                try:
-                    image = face_recognition.load_image_file(image_path)
-                    encoding = face_recognition.face_encodings(image)[0]
-                    name = os.path.splitext(filename)[0]  # Extract name from filename (without extension)
-                    images.append(image)
-                    encodings.append(encoding)
-                    names.append(name)
-                except FileNotFoundError:
-                    print(f"Error: File not found: {image_path}")  # Handle missing files gracefully
-                except IndexError:
-                    print(f"Error: No faces detected in image: {image_path}")  # Handle empty images
-    with open('encodings.pkl', 'wb') as f:
-        pickle.dump((encodings, names), f)
+                name = os.path.splitext(filename)[0]
+                
+                if name not in known_names:
+                    try:
+                        image = face_recognition.load_image_file(image_path)
+                        encoding = face_recognition.face_encodings(image)[0]
+                        name = os.path.splitext(filename)[0]  # Extract name from filename (without extension)
+                        images.append(image)
+                        encodings.append(encoding)
+                        names.append(name)
+                    except FileNotFoundError:
+                        print(f"Error: File not found: {image_path}")  # Handle missing files gracefully
+                    except IndexError:
+                        print(f"Error: No faces detected in image: {image_path}")  # Handle empty images
+    with open('encodings.pkl', 'wb') as f:  # Open file in 'wb' mode to overwrite existing content
+        pickle.dump((known_encodings + encodings, known_names + names), f)
     return images, encodings, names
 
 
@@ -107,10 +115,10 @@ def extract_attendance():
 #### Add Attendance of a specific user
 def add_attendance(name):
   username = name.split('_')[0]
-  userid = name.split('_')[1]
+  userid = int(name.split('_')[1])
   current_time = datetime.now().strftime("%H:%M:%S")
   df = pd.read_csv(f'Attendance/Attendance-{datetoday}.csv')
-  if username not in df['Name'].tolist():
+  if userid not in df['Roll'].tolist():
     # New attendance entry, append to the DataFrame
     new_attendance = pd.DataFrame({'Name': [username], 'Roll': [userid], 'Time': [current_time]})
     df = pd.concat([df, new_attendance], ignore_index=True)
@@ -148,10 +156,10 @@ def start():
         known_encodings, known_names = pickle.load(f)
     # Initialize video capture and face recognition process
     video_capture = cv2.VideoCapture(0)
-
     while True:
         ret, frame = video_capture.read()
 
+        # Convert frame to RGB format for face recognition
         # Convert frame to RGB format for face recognition
         rgb_frame = frame[:, :, ::-1]
 
@@ -162,14 +170,15 @@ def start():
         # Loop through each detected face
         for face_encoding, face_location in zip(face_encodings, face_locations):
             # Match the face encoding with the known face encodings
-            matches = face_recognition.compare_faces(known_encodings, face_encoding)
+            matches = face_recognition.compare_faces(known_encodings, face_encoding,tolerance=0.5)
             name = "Unknown"
+            username="Unknown"
 
             # If a match is found, get the name
             if True in matches:
                 first_match_index = matches.index(True)
                 name = known_names[first_match_index]
-
+                username=name.split('_')[0]
                 # Mark attendance for the recognized person
                 add_attendance(name)
                 # Play sound notification on detection (Windows)
@@ -185,7 +194,7 @@ def start():
             # Display name below the face rectangle
             font_scale = 1.0
             font_thickness = 2
-            cv2.putText(frame, name, (left + 6, bottom - 6), cv2.FONT_HERSHEY_SIMPLEX,
+            cv2.putText(frame,username, (left + 6, bottom - 6), cv2.FONT_HERSHEY_SIMPLEX,
                         font_scale, (255, 255, 255), font_thickness)
 
         # Display the resulting frame
@@ -219,13 +228,13 @@ def add():
         faces = extract_faces(frame)
         for (x,y,w,h) in faces:
             cv2.rectangle(frame,(x, y), (x+w, y+h), (255, 0, 20), 2)
-            cv2.putText(frame,f'Images Captured: {i}/50',(30,30),cv2.FONT_HERSHEY_SIMPLEX,1,(255, 0, 20),2,cv2.LINE_AA)
+            cv2.putText(frame,f'Images Captured: {i}/10',(30,30),cv2.FONT_HERSHEY_SIMPLEX,1,(255, 0, 20),2,cv2.LINE_AA)
             if j%10==0:
-                name = newusername+'_'+str(i)+'.jpg'
+                name = newusername+'_'+newuserid+'_'+str(i)+'.jpg'
                 cv2.imwrite(userimagefolder+'/'+name,frame[y:y+h,x:x+w])
                 i+=1
             j+=1
-        if j==500:
+        if j==100:
             break
         cv2.imshow('Adding new User',frame)
         if cv2.waitKey(1)==27:
